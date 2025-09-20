@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Buffer } from "buffer";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { program, counterPDA } from "../anchor/setup";
 import type { CounterData } from "../anchor/setup";
@@ -13,7 +14,7 @@ export default function CounterState() {
   useEffect(() => {
     let isMounted = true;
 
-    const decodeAndSet = (accountData: Uint8Array) => {
+    const decodeAndSet = (accountData: Buffer) => {
       try {
         const decoded = program.coder.accounts.decode<CounterData>(
           ACCOUNT_NAME,
@@ -41,7 +42,7 @@ export default function CounterState() {
           }
           return;
         }
-        decodeAndSet(accountInfo.data);
+        decodeAndSet(Buffer.from(accountInfo.data));
       } catch (fetchError) {
         console.error("Error fetching counter data:", fetchError);
         if (isMounted) {
@@ -53,7 +54,7 @@ export default function CounterState() {
     fetchCounterData();
 
     const subscriptionId = connection.onAccountChange(counterPDA, (accountInfo) => {
-      decodeAndSet(accountInfo.data as Uint8Array);
+      decodeAndSet(Buffer.from(accountInfo.data));
     });
 
     return () => {
