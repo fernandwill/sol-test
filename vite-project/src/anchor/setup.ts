@@ -12,8 +12,9 @@ import counterIdl from "../../counter.json";
 import { clusterApiUrl, Connection, Keypair, PublicKey } from "@solana/web3.js";
 
 // Polyfill Buffer for browser builds (bn.js/@solana/web3.js expects it).
-if (typeof globalThis.Buffer === "undefined") {
-  (globalThis as typeof globalThis & { Buffer: typeof Buffer }).Buffer = Buffer;
+const globalPolyfill = globalThis as typeof globalThis & { Buffer?: typeof Buffer };
+if (typeof globalPolyfill.Buffer === "undefined") {
+  globalPolyfill.Buffer = Buffer;
 }
 
 const connection = new Connection(clusterApiUrl("devnet"), "confirmed");

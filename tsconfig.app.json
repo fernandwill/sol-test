@@ -15,7 +15,7 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "typeRoots": ["./node_modules/@types"],
-    "types": ["web", "w3c-web-usb"] ,
+    "types": ["web", "w3c-web-usb"],
 
     /* Linting */
     "strict": true,

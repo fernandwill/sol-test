@@ -1,71 +1,36 @@
 [{
-	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/vite-project/src/anchor/setup.ts",
+	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/vite-project/tsconfig.app.json",
 	"owner": "typescript",
-	"code": "2339",
 	"severity": 8,
-	"message": "Property 'fields' does not exist on type 'IdlTypeDefTy'.\n  Property 'fields' does not exist on type 'IdlTypeDefTyEnum'.",
+	"message": "Cannot find type definition file for 'web'.\n  The file is in the program because:\n    Entry point for implicit type library 'web'",
 	"source": "ts",
-	"startLineNumber": 26,
-	"startColumn": 37,
-	"endLineNumber": 26,
-	"endColumn": 43,
+	"startLineNumber": 1,
+	"startColumn": 1,
+	"endLineNumber": 1,
+	"endColumn": 2,
+	"origin": "extHost1"
+}]
+
+[{
+	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/vite-project/tsconfig.node.json",
+	"owner": "typescript",
+	"severity": 8,
+	"message": "Cannot find type definition file for 'w3c-web-usb'.\n  The file is in the program because:\n    Entry point for implicit type library 'w3c-web-usb'",
+	"source": "ts",
+	"startLineNumber": 1,
+	"startColumn": 1,
+	"endLineNumber": 1,
+	"endColumn": 2,
 	"origin": "extHost1"
 },{
-	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/vite-project/src/anchor/setup.ts",
+	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/vite-project/tsconfig.node.json",
 	"owner": "typescript",
-	"code": "2339",
 	"severity": 8,
-	"message": "Property 'size' does not exist on type 'IdlAccount'.",
+	"message": "Cannot find type definition file for 'web'.\n  The file is in the program because:\n    Entry point for implicit type library 'web'",
 	"source": "ts",
-	"startLineNumber": 50,
-	"startColumn": 20,
-	"endLineNumber": 50,
-	"endColumn": 24,
-	"origin": "extHost1"
-},{
-	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/vite-project/src/anchor/setup.ts",
-	"owner": "typescript",
-	"code": "2339",
-	"severity": 8,
-	"message": "Property 'type' does not exist on type 'IdlAccount'.",
-	"source": "ts",
-	"startLineNumber": 51,
-	"startColumn": 25,
-	"endLineNumber": 51,
-	"endColumn": 29,
-	"origin": "extHost1"
-},{
-	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/vite-project/src/anchor/setup.ts",
-	"owner": "typescript",
-	"code": "2339",
-	"severity": 8,
-	"message": "Property 'type' does not exist on type 'IdlAccount'.",
-	"source": "ts",
-	"startLineNumber": 52,
-	"startColumn": 22,
-	"endLineNumber": 52,
-	"endColumn": 26,
-	"origin": "extHost1"
-},{
-	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/vite-project/src/anchor/setup.ts",
-	"owner": "typescript",
-	"code": "2345",
-	"severity": 8,
-	"message": "Argument of type 'PublicKey' is not assignable to parameter of type 'Provider'.\n  Property 'connection' is missing in type 'PublicKey' but required in type 'Provider'.",
-	"source": "ts",
-	"startLineNumber": 80,
-	"startColumn": 50,
-	"endLineNumber": 80,
-	"endColumn": 59,
-	"relatedInformation": [
-		{
-			"startLineNumber": 4,
-			"startColumn": 14,
-			"endLineNumber": 4,
-			"endColumn": 24,
-			"message": "'connection' is declared here.",
-			"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/vite-project/node_modules/@coral-xyz/anchor/dist/cjs/provider.d.ts"
-		}
-	],
+	"startLineNumber": 1,
+	"startColumn": 1,
+	"endLineNumber": 1,
+	"endColumn": 2,
 	"origin": "extHost1"
 }]
