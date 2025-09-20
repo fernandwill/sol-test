@@ -6,11 +6,27 @@ import type { CounterAccountData } from "../anchor/setup";
 
 const MIN_BALANCE_LAMPORTS = 100_000; // 0.0001 SOL cushion
 
+function isAccountDeserializeError(error: unknown): boolean {
+  if (!error) {
+    return false;
+  }
+  if (typeof error === "object" && error !== null) {
+    const maybeNumber = (error as { code?: number }).code;
+    const maybeCode = (error as { errorCode?: { code?: string } }).errorCode?.code;
+    if (maybeNumber === 3003 || maybeCode === "AccountDidNotDeserialize") {
+      return true;
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("AccountDidNotDeserialize") || message.includes("Failed to deserialize the account");
+}
+
 export default function CounterState() {
   const { connection } = useConnection();
   const wallet = useAnchorWallet();
 
   const counterPDA = useMemo(() => getCounterPDA(), []);
+  const counterAddress = useMemo(() => counterPDA.toBase58(), [counterPDA]);
   const program = useMemo(() => {
     if (!wallet) {
       return null;
@@ -21,6 +37,7 @@ export default function CounterState() {
   const [counterData, setCounterData] = useState<CounterAccountData | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
+  const [hasCorruptedCounter, setHasCorruptedCounter] = useState(false);
   const [txSignature, setTxSignature] = useState<string | null>(null);
 
   const fetchCounter = useCallback(async () => {
@@ -34,15 +51,25 @@ export default function CounterState() {
       if (!account) {
         setCounterData(null);
         setErrorMessage("Counter account not found. Press Initialize Counter.");
+        setHasCorruptedCounter(false);
         return;
       }
       setCounterData(account as CounterAccountData);
       setErrorMessage(null);
+      setHasCorruptedCounter(false);
     } catch (error) {
       console.error("Failed to fetch counter:", error);
+      if (isAccountDeserializeError(error)) {
+        setCounterData(null);
+        setHasCorruptedCounter(true);
+        setErrorMessage(
+          `Counter PDA ${counterAddress} exists but holds incompatible data from an older client. Close the PDA (e.g. via \`solana account close ${counterAddress}\`) or redeploy, then refresh and re-run initialize.`,
+        );
+        return;
+      }
       setErrorMessage("Failed to fetch counter account.");
     }
-  }, [program, wallet, counterPDA]);
+  }, [program, wallet, counterAddress, counterPDA]);
 
   useEffect(() => {
     let subscriptionId: number | null = null;
@@ -69,6 +96,12 @@ export default function CounterState() {
   const initializeCounter = useCallback(async () => {
     if (!program || !wallet?.publicKey) {
       setErrorMessage("Connect your wallet before initializing.");
+      return;
+    }
+    if (hasCorruptedCounter) {
+      setErrorMessage(
+        `PDA ${counterAddress} already exists with incompatible data. Close it first (\`solana account close ${counterAddress}\`) or redeploy the program before trying again.`,
+      );
       return;
     }
     if (isInitializing) {
@@ -99,19 +132,26 @@ export default function CounterState() {
       await fetchCounter();
     } catch (error: unknown) {
       console.error("Initialization failed:", error);
-      const message = error instanceof Error ? error.message : String(error);
-      setErrorMessage(`Initialization failed: ${message}`);
+      if (isAccountDeserializeError(error)) {
+        setHasCorruptedCounter(true);
+        setErrorMessage(
+          `Initialization failed because PDA ${counterAddress} already exists with stale data. Close it first (\`solana account close ${counterAddress}\`) or redeploy the program, then refresh and try again.`,
+        );
+      } else {
+        const message = error instanceof Error ? error.message : String(error);
+        setErrorMessage(`Initialization failed: ${message}`);
+      }
     } finally {
       setIsInitializing(false);
     }
-  }, [connection, counterPDA, fetchCounter, isInitializing, program, wallet]);
+  }, [connection, counterAddress, counterPDA, fetchCounter, hasCorruptedCounter, isInitializing, program, wallet]);
 
   return (
     <div className="space-y-3">
       <p className="text-lg">
         Count: {counterData ? counterData.count.toString() : "--"}
       </p>
-      {errorMessage && <p className="text-sm text-red-500">{errorMessage}</p>}
+      {errorMessage && <p className="text-sm text-red-500 whitespace-pre-line">{errorMessage}</p>}
       <div className="space-x-2">
         <button
           type="button"
