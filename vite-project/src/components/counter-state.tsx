@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Buffer } from "buffer";
 import { useConnection } from "@solana/wallet-adapter-react";
-import { LAMPORTS_PER_SOL, SystemProgram } from "@solana/web3.js";
+import { LAMPORTS_PER_SOL, PublicKey, SystemProgram } from "@solana/web3.js";
 import { program, counterPDA } from "../anchor/setup";
 import type { CounterData } from "../anchor/setup";
 
@@ -78,20 +78,27 @@ export default function CounterState() {
     setTxSignature(null);
     try {
       setErrorMessage(null);
-      const walletPublicKey = program.provider.wallet.publicKey;
+      const walletPublicKey = program.provider.wallet?.publicKey;
+      if (!walletPublicKey) {
+        setErrorMessage("Program wallet is not available.");
+        return;
+      }
+
       const balance = await connection.getBalance(walletPublicKey);
       if (balance < LAMPORTS_PER_SOL / 100) {
         const airdropSignature = await connection.requestAirdrop(walletPublicKey, LAMPORTS_PER_SOL);
         await connection.confirmTransaction(airdropSignature, "confirmed");
       }
 
+      const initializeAccounts: Record<string, PublicKey> = {
+        user: walletPublicKey,
+        counter: counterPDA,
+        systemProgram: SystemProgram.programId,
+      };
+
       const signature = await program.methods
         .initialize()
-        .accounts({
-          user: walletPublicKey,
-          counter: counterPDA,
-          systemProgram: SystemProgram.programId,
-        })
+        .accounts(initializeAccounts as never)
         .rpc();
       setTxSignature(signature);
       await fetchCounterData();
