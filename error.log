@@ -1,0 +1,71 @@
+[{
+	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/src/call-program.ts",
+	"owner": "typescript",
+	"code": "7016",
+	"severity": 8,
+	"message": "Could not find a declaration file for module 'yargs/yargs'. 'c:/Users/Administrator/Documents/Fullstack Projects/sol-test/node_modules/yargs/yargs.mjs' implicitly has an 'any' type.\n  Try `npm i --save-dev @types/yargs` if it exists or add a new declaration (.d.ts) file containing `declare module 'yargs/yargs';`",
+	"source": "ts",
+	"startLineNumber": 6,
+	"startColumn": 19,
+	"endLineNumber": 6,
+	"endColumn": 32,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/src/call-program.ts",
+	"owner": "typescript",
+	"code": "7016",
+	"severity": 8,
+	"message": "Could not find a declaration file for module 'yargs/helpers'. 'c:/Users/Administrator/Documents/Fullstack Projects/sol-test/node_modules/yargs/helpers/helpers.mjs' implicitly has an 'any' type.\n  Try `npm i --save-dev @types/yargs` if it exists or add a new declaration (.d.ts) file containing `declare module 'yargs/helpers';`",
+	"source": "ts",
+	"startLineNumber": 7,
+	"startColumn": 25,
+	"endLineNumber": 7,
+	"endColumn": 40,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/src/call-program.ts",
+	"owner": "typescript",
+	"code": "7006",
+	"severity": 8,
+	"message": "Parameter 'entry' implicitly has an 'any' type.",
+	"source": "ts",
+	"startLineNumber": 243,
+	"startColumn": 11,
+	"endLineNumber": 243,
+	"endColumn": 16,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/src/call-program.ts",
+	"owner": "typescript",
+	"code": "7006",
+	"severity": 8,
+	"message": "Parameter 'entry' implicitly has an 'any' type.",
+	"source": "ts",
+	"startLineNumber": 244,
+	"startColumn": 14,
+	"endLineNumber": 244,
+	"endColumn": 19,
+	"origin": "extHost1"
+},{
+	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/src/call-program.ts",
+	"owner": "typescript",
+	"code": "2345",
+	"severity": 8,
+	"message": "Argument of type 'PublicKey' is not assignable to parameter of type 'Provider'.\n  Property 'connection' is missing in type 'PublicKey' but required in type 'Provider'.",
+	"source": "ts",
+	"startLineNumber": 255,
+	"startColumn": 43,
+	"endLineNumber": 255,
+	"endColumn": 52,
+	"relatedInformation": [
+		{
+			"startLineNumber": 4,
+			"startColumn": 14,
+			"endLineNumber": 4,
+			"endColumn": 24,
+			"message": "'connection' is declared here.",
+			"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/node_modules/@coral-xyz/anchor/dist/cjs/provider.d.ts"
+		}
+	],
+	"origin": "extHost1"
+}]
