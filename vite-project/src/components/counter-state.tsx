@@ -1,64 +1,60 @@
-import { useCallback, useEffect, useState } from "react";
-import { Buffer } from "buffer";
-import { useConnection } from "@solana/wallet-adapter-react";
-import { LAMPORTS_PER_SOL, PublicKey, SystemProgram } from "@solana/web3.js";
-import { program, counterPDA } from "../anchor/setup";
-import type { CounterData } from "../anchor/setup";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
+import { SystemProgram } from "@solana/web3.js";
+import { getCounterPDA, getProgram } from "../anchor/setup";
+import type { CounterAccountData } from "../anchor/setup";
 
-const ACCOUNT_NAME = "Counter" as const;
+const MIN_BALANCE_LAMPORTS = 100_000; // 0.0001 SOL cushion
 
 export default function CounterState() {
   const { connection } = useConnection();
-  const [counterData, setCounterData] = useState<CounterData | null>(null);
+  const wallet = useAnchorWallet();
+
+  const counterPDA = useMemo(() => getCounterPDA(), []);
+  const program = useMemo(() => {
+    if (!wallet) {
+      return null;
+    }
+    return getProgram(connection, wallet);
+  }, [connection, wallet]);
+
+  const [counterData, setCounterData] = useState<CounterAccountData | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [txSignature, setTxSignature] = useState<string | null>(null);
 
-  const decodeAndSet = useCallback(
-    (accountData: Buffer) => {
-      try {
-        const decoded = program.coder.accounts.decode<CounterData>(
-          ACCOUNT_NAME,
-          accountData,
-        );
-        setCounterData(decoded);
-        setErrorMessage(null);
-      } catch (decodeError) {
-        console.error("Error decoding account data:", decodeError);
-        setErrorMessage("Unable to decode counter account data.");
-      }
-    },
-    [],
-  );
-
-  const fetchCounterData = useCallback(async () => {
+  const fetchCounter = useCallback(async () => {
+    if (!program) {
+      setErrorMessage(wallet ? "Program unavailable." : "Connect your wallet to load the counter.");
+      setCounterData(null);
+      return;
+    }
     try {
-      const accountInfo = await connection.getAccountInfo(counterPDA);
-      if (!accountInfo) {
+      const account = await program.account.counter.fetchNullable(counterPDA);
+      if (!account) {
         setCounterData(null);
-        setErrorMessage("Counter account not found. Run the initialize instruction.");
+        setErrorMessage("Counter account not found. Press Initialize Counter.");
         return;
       }
-      decodeAndSet(Buffer.from(accountInfo.data));
-    } catch (fetchError) {
-      console.error("Error fetching counter data:", fetchError);
+      setCounterData(account as CounterAccountData);
+      setErrorMessage(null);
+    } catch (error) {
+      console.error("Failed to fetch counter:", error);
       setErrorMessage("Failed to fetch counter account.");
     }
-  }, [connection, decodeAndSet]);
+  }, [program, wallet, counterPDA]);
 
   useEffect(() => {
     let subscriptionId: number | null = null;
 
-    fetchCounterData();
+    void fetchCounter();
 
-    const subscribe = async () => {
-      subscriptionId = connection.onAccountChange(counterPDA, (accountInfo) => {
-        decodeAndSet(Buffer.from(accountInfo.data));
-      });
-    };
+    if (!program) {
+      return () => {};
+    }
 
-    subscribe().catch((error) => {
-      console.error("Failed to subscribe to account changes:", error);
+    subscriptionId = connection.onAccountChange(counterPDA, () => {
+      void fetchCounter();
     });
 
     return () => {
@@ -68,48 +64,47 @@ export default function CounterState() {
         });
       }
     };
-  }, [connection, decodeAndSet, fetchCounterData]);
+  }, [connection, counterPDA, fetchCounter, program]);
 
   const initializeCounter = useCallback(async () => {
+    if (!program || !wallet?.publicKey) {
+      setErrorMessage("Connect your wallet before initializing.");
+      return;
+    }
     if (isInitializing) {
       return;
     }
+
     setIsInitializing(true);
     setTxSignature(null);
+
     try {
       setErrorMessage(null);
-      const walletPublicKey = program.provider.wallet?.publicKey;
-      if (!walletPublicKey) {
-        setErrorMessage("Program wallet is not available.");
+      const balance = await connection.getBalance(wallet.publicKey);
+      if (balance < MIN_BALANCE_LAMPORTS) {
+        setErrorMessage("Wallet needs devnet SOL. Fund via https://faucet.solana.com and retry.");
         return;
       }
 
-      const balance = await connection.getBalance(walletPublicKey);
-      if (balance < LAMPORTS_PER_SOL / 100) {
-        const airdropSignature = await connection.requestAirdrop(walletPublicKey, LAMPORTS_PER_SOL);
-        await connection.confirmTransaction(airdropSignature, "confirmed");
-      }
-
-      const initializeAccounts: Record<string, PublicKey> = {
-        user: walletPublicKey,
-        counter: counterPDA,
-        systemProgram: SystemProgram.programId,
-      };
-
       const signature = await program.methods
         .initialize()
-        .accounts(initializeAccounts as never)
+        .accounts({
+          user: wallet.publicKey,
+          counter: counterPDA,
+          systemProgram: SystemProgram.programId,
+        } as never)
         .rpc();
+
       setTxSignature(signature);
-      await fetchCounterData();
-    } catch (initialiseError) {
-      console.error("Initialization failed:", initialiseError);
-      const message = initialiseError instanceof Error ? initialiseError.message : String(initialiseError);
+      await fetchCounter();
+    } catch (error: unknown) {
+      console.error("Initialization failed:", error);
+      const message = error instanceof Error ? error.message : String(error);
       setErrorMessage(`Initialization failed: ${message}`);
     } finally {
       setIsInitializing(false);
     }
-  }, [connection, fetchCounterData, isInitializing]);
+  }, [connection, counterPDA, fetchCounter, isInitializing, program, wallet]);
 
   return (
     <div className="space-y-3">
@@ -121,10 +116,10 @@ export default function CounterState() {
         <button
           type="button"
           onClick={initializeCounter}
-          disabled={isInitializing}
+          disabled={isInitializing || !wallet}
           className="rounded bg-indigo-600 px-3 py-1 text-sm font-medium text-white disabled:opacity-60"
         >
-          {isInitializing ? "Initializing..." : "Initialize Counter"}
+          {!wallet ? "Connect Wallet" : isInitializing ? "Initializing..." : "Initialize Counter"}
         </button>
         {txSignature && (
           <a

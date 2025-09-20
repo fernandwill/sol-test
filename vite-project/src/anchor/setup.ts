@@ -1,15 +1,19 @@
 import { Buffer } from "buffer";
+import type { Wallet } from "@coral-xyz/anchor";
 import {
   AnchorProvider,
   Program,
   type Idl,
   type IdlAccounts,
-  type Wallet,
 } from "@coral-xyz/anchor";
-import type { IdlAccount, IdlType, IdlTypeDef } from "@coral-xyz/anchor/dist/browser/src/idl.js";
+import type {
+  IdlAccount,
+  IdlType,
+  IdlTypeDef,
+} from "@coral-xyz/anchor/dist/browser/src/idl.js";
 import type { Counter } from "../../counter.ts";
 import counterIdl from "../../counter.json";
-import { clusterApiUrl, Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
 
 // Polyfill Buffer for browser builds (bn.js/@solana/web3.js expects it).
 const globalPolyfill = globalThis as typeof globalThis & { Buffer?: typeof Buffer };
@@ -17,12 +21,13 @@ if (typeof globalPolyfill.Buffer === "undefined") {
   globalPolyfill.Buffer = Buffer;
 }
 
-const connection = new Connection(clusterApiUrl("devnet"), "confirmed");
-
 type MutableIdlAccount = IdlAccount & { size?: number; type?: IdlTypeDef["type"] };
 type MutableCounterIdl = Idl & Counter;
-
 type StructField = IdlType | { type: IdlType };
+
+type WalletLike = Pick<Wallet, "publicKey" | "signTransaction" | "signAllTransactions"> & {
+  payer?: Wallet["payer"];
+};
 
 function sizeForIdlType(idlType: IdlType): number {
   if (typeof idlType === "string") {
@@ -113,35 +118,18 @@ function ensureAccountLayout(idl: MutableCounterIdl): MutableCounterIdl {
 }
 
 const IDL = ensureAccountLayout(counterIdl as MutableCounterIdl);
-const programId = new PublicKey(IDL.address);
-
-const keypair = Keypair.generate();
-const wallet: Wallet = {
-  publicKey: keypair.publicKey,
-  signTransaction: (transaction: any) => {
-    transaction.partialSign(keypair);
-    return transaction;
-  },
-  signAllTransactions: async (transactions: any[]) => {
-    return transactions.map((tx) => {
-      tx.partialSign(keypair);
-      return tx;
-    });
-  },
-  payer: keypair,
-};
-
-const provider = new AnchorProvider(connection, wallet, {
-  commitment: "confirmed",
-  preflightCommitment: "confirmed",
-});
-
-export const program = new Program<Counter>(IDL, provider);
-
+export const PROGRAM_ID = new PublicKey(IDL.address);
 const COUNTER_SEED = new TextEncoder().encode("counter");
-export const [counterPDA] = PublicKey.findProgramAddressSync(
-  [COUNTER_SEED],
-  programId,
-);
 
-export type CounterData = IdlAccounts<Counter>["counter"];
+export const getCounterPDA = () =>
+  PublicKey.findProgramAddressSync([COUNTER_SEED], PROGRAM_ID)[0];
+
+export type CounterAccountData = IdlAccounts<Counter>["counter"];
+
+export function getProgram(connection: Connection, wallet: WalletLike) {
+  const provider = new AnchorProvider(connection, wallet as Wallet, {
+    commitment: "confirmed",
+    preflightCommitment: "confirmed",
+  });
+  return new Program<Counter>(IDL, provider);
+}
