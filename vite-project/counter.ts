@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/counter.json`.
  */
 export type Counter = {
-  "address": "FzLMd2FEkKFPnLUy7v23n2BUS8txtXzPs97dEC2CB7q7",
+  "address": "A45Txmp85q1HwKErrBYhqA1oYSLVK2imLEgv9YL9xGMy",
   "metadata": {
     "name": "counter",
     "version": "0.1.0",
@@ -14,56 +14,20 @@ export type Counter = {
   },
   "instructions": [
     {
-      "name": "increment",
+      "name": "createCounter",
       "discriminator": [
-        11,
-        18,
-        104,
-        9,
-        104,
         174,
-        59,
-        33
+        255,
+        78,
+        222,
+        78,
+        250,
+        200,
+        80
       ],
       "accounts": [
         {
-          "name": "counter",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  117,
-                  110,
-                  116,
-                  101,
-                  114
-                ]
-              }
-            ]
-          }
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "initialize",
-      "discriminator": [
-        175,
-        175,
-        109,
-        31,
-        13,
-        152,
-        155,
-        237
-      ],
-      "accounts": [
-        {
-          "name": "user",
+          "name": "authority",
           "writable": true,
           "signer": true
         },
@@ -73,16 +37,8 @@ export type Counter = {
           "pda": {
             "seeds": [
               {
-                "kind": "const",
-                "value": [
-                  99,
-                  111,
-                  117,
-                  110,
-                  116,
-                  101,
-                  114
-                ]
+                "kind": "account",
+                "path": "authority"
               }
             ]
           }
@@ -90,6 +46,41 @@ export type Counter = {
         {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "updateCounter",
+      "discriminator": [
+        171,
+        200,
+        174,
+        106,
+        229,
+        34,
+        80,
+        175
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true,
+          "relations": [
+            "counter"
+          ]
+        },
+        {
+          "name": "counter",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "authority"
+              }
+            ]
+          }
         }
       ],
       "args": []
@@ -117,12 +108,12 @@ export type Counter = {
         "kind": "struct",
         "fields": [
           {
-            "name": "count",
-            "type": "u64"
+            "name": "authority",
+            "type": "pubkey"
           },
           {
-            "name": "bump",
-            "type": "u8"
+            "name": "count",
+            "type": "u64"
           }
         ]
       }

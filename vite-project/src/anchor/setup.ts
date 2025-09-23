@@ -117,12 +117,11 @@ function ensureAccountLayout(idl: MutableCounterIdl): MutableCounterIdl {
   return idl;
 }
 
-const IDL = ensureAccountLayout(counterIdl as MutableCounterIdl);
+const IDL = ensureAccountLayout(counterIdl as unknown as MutableCounterIdl);
 export const PROGRAM_ID = new PublicKey(IDL.address);
-const COUNTER_SEED = new TextEncoder().encode("counter");
 
-export const getCounterPDA = () =>
-  PublicKey.findProgramAddressSync([COUNTER_SEED], PROGRAM_ID)[0];
+export const getCounterPDA = (authority: PublicKey) =>
+  PublicKey.findProgramAddressSync([authority.toBuffer()], PROGRAM_ID)[0];
 
 export type CounterAccountData = IdlAccounts<Counter>["counter"];
 

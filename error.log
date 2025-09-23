@@ -1,36 +1,4 @@
-[{
-	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/vite-project/tsconfig.app.json",
-	"owner": "typescript",
-	"severity": 8,
-	"message": "Cannot find type definition file for 'web'.\n  The file is in the program because:\n    Entry point for implicit type library 'web'",
-	"source": "ts",
-	"startLineNumber": 1,
-	"startColumn": 1,
-	"endLineNumber": 1,
-	"endColumn": 2,
-	"origin": "extHost1"
-}]
+counter-state.tsx:180 Initialization failed: _AnchorError: AnchorError occurred. Error Code: DeclaredProgramIdMismatch. Error Number: 4100. Error Message: The declared program id does not match the actual program id.
+    at async counter-state.tsx:164:25
+(anonymous)	@	counter-state.tsx:180
 
-[{
-	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/vite-project/tsconfig.node.json",
-	"owner": "typescript",
-	"severity": 8,
-	"message": "Cannot find type definition file for 'w3c-web-usb'.\n  The file is in the program because:\n    Entry point for implicit type library 'w3c-web-usb'",
-	"source": "ts",
-	"startLineNumber": 1,
-	"startColumn": 1,
-	"endLineNumber": 1,
-	"endColumn": 2,
-	"origin": "extHost1"
-},{
-	"resource": "/c:/Users/Administrator/Documents/Fullstack Projects/sol-test/vite-project/tsconfig.node.json",
-	"owner": "typescript",
-	"severity": 8,
-	"message": "Cannot find type definition file for 'web'.\n  The file is in the program because:\n    Entry point for implicit type library 'web'",
-	"source": "ts",
-	"startLineNumber": 1,
-	"startColumn": 1,
-	"endLineNumber": 1,
-	"endColumn": 2,
-	"origin": "extHost1"
-}]
