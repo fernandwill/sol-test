@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
-import { SystemProgram } from "@solana/web3.js";
+import { PublicKey, SystemProgram } from "@solana/web3.js";
 import { PROGRAM_ID, getCounterPDA, getProgram } from "../anchor/setup";
 import type { CounterAccountData } from "../anchor/setup";
 
@@ -21,6 +21,20 @@ function isAccountDeserializeError(error: unknown): boolean {
   return message.includes("AccountDidNotDeserialize") || message.includes("Failed to deserialize the account");
 }
 
+function toCamelCase(name: string): string {
+  if (!name) {
+    return name;
+  }
+  const lower = name[0].toLowerCase() + name.slice(1);
+  return lower.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+}
+
+type IdlInstructionAccount = { name: string };
+type IdlInstruction = {
+  name: string;
+  accounts?: IdlInstructionAccount[];
+};
+
 export default function CounterState() {
   const { connection } = useConnection();
   const wallet = useAnchorWallet();
@@ -30,8 +44,8 @@ export default function CounterState() {
     if (!wallet?.publicKey) {
       return null;
     }
-    return getCounterPDA(wallet.publicKey);
-  }, [walletAddress, wallet?.publicKey]);
+    return getCounterPDA(wallet.publicKey as PublicKey);
+  }, [walletAddress]);
 
   const counterAddress = counterPDA?.toBase58() ?? null;
 
@@ -47,6 +61,19 @@ export default function CounterState() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasCorruptedCounter, setHasCorruptedCounter] = useState(false);
   const [txSignature, setTxSignature] = useState<string | null>(null);
+
+  const { createInstruction, updateInstruction } = useMemo(() => {
+    if (!program) {
+      return { createInstruction: null as IdlInstruction | null, updateInstruction: null as IdlInstruction | null };
+    }
+    const instructions = (program.idl.instructions ?? []) as IdlInstruction[];
+    const hasSystemProgram = (inst: IdlInstruction) =>
+      inst.accounts?.some((account) => account.name === "systemProgram" || account.name === "system_program") ?? false;
+
+    const initCandidate = instructions.find((inst) => hasSystemProgram(inst)) ?? null;
+    const updateCandidate = instructions.find((inst) => inst !== initCandidate) ?? null;
+    return { createInstruction: initCandidate, updateInstruction: updateCandidate };
+  }, [program]);
 
   const fetchCounter = useCallback(async () => {
     if (!program) {
@@ -115,6 +142,35 @@ export default function CounterState() {
     };
   }, [connection, counterPDA, fetchCounter, program]);
 
+  const buildAccounts = useCallback(
+    (instruction: IdlInstruction | null) => {
+      if (!instruction) {
+        return null;
+      }
+      const accounts: Record<string, PublicKey> = {};
+      for (const meta of instruction.accounts ?? []) {
+        const name = toCamelCase(meta.name);
+        if (name === "authority") {
+          if (!wallet?.publicKey) {
+            return null;
+          }
+          accounts[name] = wallet.publicKey as PublicKey;
+        } else if (name === "counter") {
+          if (!counterPDA) {
+            return null;
+          }
+          accounts[name] = counterPDA;
+        } else if (name === "systemProgram") {
+          accounts[name] = SystemProgram.programId;
+        } else {
+          console.warn(`Unhandled account '${meta.name}' for instruction '${instruction.name}'.`);
+        }
+      }
+      return accounts;
+    },
+    [counterPDA, wallet?.publicKey],
+  );
+
   const incrementCounter = useCallback(async () => {
     if (!program || !wallet?.publicKey) {
       setErrorMessage("Connect your wallet before incrementing the counter.");
@@ -146,19 +202,39 @@ export default function CounterState() {
         return;
       }
 
-      const methods = program.methods as unknown as Record<string, (...args: never[]) => any>;
-      const incrementMethod = methods.increment ?? methods.createCounter;
-      if (!incrementMethod) {
-        throw new Error("Counter program does not expose an increment/create method.");
+      const methods = program.methods as unknown as Record<string, () => { accounts(accounts: Record<string, PublicKey>): { rpc(): Promise<string> } }>;
+      const shouldInitialize = counterData === null;
+      const preferredInstruction = shouldInitialize ? createInstruction ?? updateInstruction : updateInstruction ?? createInstruction;
+      if (!preferredInstruction) {
+        throw new Error("Counter program IDL is missing usable instructions.");
+      }
+      const methodName = toCamelCase(preferredInstruction.name);
+      const methodFactory = methods[methodName];
+      if (!methodFactory) {
+        throw new Error(`Counter program does not expose a '${methodName}' method.`);
+      }
+      const accounts = buildAccounts(preferredInstruction);
+      if (!accounts) {
+        throw new Error(`Unable to derive accounts for instruction '${preferredInstruction.name}'.`);
       }
 
-      const signature = await incrementMethod()
-        .accounts({
-          authority: wallet.publicKey,
-          counter: counterPDA,
-          systemProgram: SystemProgram.programId,
-        } as never)
-        .rpc();
+      let signature: string;
+      try {
+        signature = await methodFactory().accounts(accounts as never).rpc();
+      } catch (callError) {
+        if (!shouldInitialize && createInstruction && preferredInstruction !== createInstruction) {
+          const createMethodName = toCamelCase(createInstruction.name);
+          const createAccounts = buildAccounts(createInstruction);
+          const createFactory = methods[createMethodName];
+          if (createFactory && createAccounts) {
+            signature = await createFactory().accounts(createAccounts as never).rpc();
+          } else {
+            throw callError;
+          }
+        } else {
+          throw callError;
+        }
+      }
 
       setHasCorruptedCounter(false);
       setTxSignature(signature);
@@ -182,7 +258,20 @@ export default function CounterState() {
     } finally {
       setIsProcessing(false);
     }
-  }, [connection, counterAddress, counterPDA, fetchCounter, hasCorruptedCounter, isProcessing, program, wallet]);
+  }, [
+    buildAccounts,
+    connection,
+    counterAddress,
+    counterData,
+    counterPDA,
+    createInstruction,
+    fetchCounter,
+    hasCorruptedCounter,
+    isProcessing,
+    program,
+    updateInstruction,
+    wallet,
+  ]);
 
   return (
     <div className="space-y-3">
@@ -201,7 +290,7 @@ export default function CounterState() {
           disabled={isProcessing || !wallet}
           className="rounded bg-indigo-600 px-3 py-1 text-sm font-medium text-white disabled:opacity-60"
         >
-          {!wallet ? "Connect Wallet" : isProcessing ? "Processing..." : "Increment Counter"}
+          {!wallet ? "Connect Wallet" : isProcessing ? "Processing..." : counterData ? "Update Counter" : "Create Counter"}
         </button>
         {txSignature && (
           <a
