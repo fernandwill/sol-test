@@ -1,3 +1,4 @@
+import { Buffer } from "buffer";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
@@ -41,10 +42,10 @@ export default function CounterState() {
   const walletAddress = wallet?.publicKey?.toBase58() ?? null;
 
   const counterPDA = useMemo(() => {
-    if (!wallet?.publicKey) {
+    if (!walletAddress) {
       return null;
     }
-    return getCounterPDA(wallet.publicKey as PublicKey);
+    return getCounterPDA(new PublicKey(walletAddress));
   }, [walletAddress]);
 
   const counterAddress = counterPDA?.toBase58() ?? null;
@@ -61,6 +62,47 @@ export default function CounterState() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasCorruptedCounter, setHasCorruptedCounter] = useState(false);
   const [txSignature, setTxSignature] = useState<string | null>(null);
+  const [interactingWallets, setInteractingWallets] = useState<string[]>([]);
+  const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
+  const [participantsError, setParticipantsError] = useState<string | null>(null);
+
+  const fetchInteractingWallets = useCallback(async () => {
+    setIsLoadingParticipants(true);
+    setParticipantsError(null);
+    try {
+      const programAccounts = await connection.getProgramAccounts(PROGRAM_ID, {
+        dataSlice: { offset: 0, length: 40 },
+        filters: [{ dataSize: 48 }],
+        commitment: "confirmed",
+      });
+
+      const participants = programAccounts
+        .map(({ account }) => {
+          const data = Buffer.from(account.data);
+          if (data.length < 40) {
+            return null;
+          }
+
+          try {
+            const authorityBytes = data.slice(8, 40);
+            return new PublicKey(authorityBytes).toBase58();
+          } catch (decodeError) {
+            console.warn("Failed to decode counter account authority:", decodeError);
+            return null;
+          }
+        })
+        .filter((address): address is string => Boolean(address));
+
+      const uniqueParticipants = participants.filter((address, index, array) => array.indexOf(address) === index);
+      setInteractingWallets(uniqueParticipants);
+    } catch (fetchError) {
+      console.error("Failed to load interacting wallets:", fetchError);
+      setParticipantsError("Failed to load wallets that interacted with the contract.");
+      setInteractingWallets([]);
+    } finally {
+      setIsLoadingParticipants(false);
+    }
+  }, [connection]);
 
   const { createInstruction, updateInstruction } = useMemo(() => {
     if (!program) {
@@ -141,6 +183,10 @@ export default function CounterState() {
       }
     };
   }, [connection, counterPDA, fetchCounter, program]);
+
+  useEffect(() => {
+    void fetchInteractingWallets();
+  }, [fetchInteractingWallets, walletAddress]);
 
   const buildAccounts = useCallback(
     (instruction: IdlInstruction | null) => {
@@ -239,6 +285,7 @@ export default function CounterState() {
       setHasCorruptedCounter(false);
       setTxSignature(signature);
       await fetchCounter();
+      await fetchInteractingWallets();
     } catch (error: unknown) {
       console.error("Increment failed:", error);
       if (isAccountDeserializeError(error)) {
@@ -266,6 +313,7 @@ export default function CounterState() {
     counterPDA,
     createInstruction,
     fetchCounter,
+    fetchInteractingWallets,
     hasCorruptedCounter,
     isProcessing,
     program,
@@ -301,6 +349,24 @@ export default function CounterState() {
           >
             View transaction
           </a>
+        )}
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-semibold">Wallets that interacted with this contract</p>
+        {participantsError ? (
+          <p className="text-sm text-red-500">{participantsError}</p>
+        ) : isLoadingParticipants ? (
+          <p className="text-sm text-slate-500">Loading wallets…</p>
+        ) : interactingWallets.length === 0 ? (
+          <p className="text-sm text-slate-500">No wallets have interacted yet.</p>
+        ) : (
+          <ul className="space-y-1 text-xs text-slate-500">
+            {interactingWallets.map((address) => (
+              <li key={address} className="break-all">
+                {address}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>
