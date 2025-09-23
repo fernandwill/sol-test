@@ -26,7 +26,7 @@ function App() {
       // if desired, manually define specific/custom wallets here (normally not required)
       // otherwise, the wallet-adapter will auto detect the wallets a user's browser has available
     ],
-    [network],
+    [],
   );
 
   return (

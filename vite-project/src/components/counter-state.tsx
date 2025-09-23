@@ -1,3 +1,4 @@
+import { Buffer } from "buffer";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAnchorWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey, SystemProgram } from "@solana/web3.js";
@@ -35,16 +36,33 @@ type IdlInstruction = {
   accounts?: IdlInstructionAccount[];
 };
 
+type CounterParticipant = {
+  address: string;
+  count: string;
+};
+
+function readUint64LE(buffer: Uint8Array, offset: number): bigint {
+  if (buffer.length < offset + 8) {
+    throw new Error("Insufficient bytes to read u64 value.");
+  }
+  let value = 0n;
+  for (let index = 0; index < 8; index += 1) {
+    const byte = buffer[offset + index];
+    value |= BigInt(byte) << BigInt(index * 8);
+  }
+  return value;
+}
+
 export default function CounterState() {
   const { connection } = useConnection();
   const wallet = useAnchorWallet();
   const walletAddress = wallet?.publicKey?.toBase58() ?? null;
 
   const counterPDA = useMemo(() => {
-    if (!wallet?.publicKey) {
+    if (!walletAddress) {
       return null;
     }
-    return getCounterPDA(wallet.publicKey as PublicKey);
+    return getCounterPDA(new PublicKey(walletAddress));
   }, [walletAddress]);
 
   const counterAddress = counterPDA?.toBase58() ?? null;
@@ -61,6 +79,57 @@ export default function CounterState() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasCorruptedCounter, setHasCorruptedCounter] = useState(false);
   const [txSignature, setTxSignature] = useState<string | null>(null);
+  const [interactingWallets, setInteractingWallets] = useState<CounterParticipant[]>([]);
+  const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
+  const [participantsError, setParticipantsError] = useState<string | null>(null);
+
+  const fetchInteractingWallets = useCallback(async () => {
+    setIsLoadingParticipants(true);
+    setParticipantsError(null);
+    try {
+      const programAccounts = await connection.getProgramAccounts(PROGRAM_ID, {
+        dataSlice: { offset: 0, length: 48 },
+        filters: [{ dataSize: 48 }],
+        commitment: "confirmed",
+      });
+
+      const participants = programAccounts
+        .map(({ account }) => {
+          const data = Buffer.from(account.data);
+          if (data.length < 48) {
+            return null;
+          }
+
+          try {
+            const authorityBytes = data.slice(8, 40);
+            const address = new PublicKey(authorityBytes).toBase58();
+            const count = readUint64LE(data, 40).toString();
+            return { address, count };
+          } catch (decodeError) {
+            console.warn("Failed to decode counter account participant:", decodeError);
+            return null;
+          }
+        })
+        .filter((participant): participant is CounterParticipant => Boolean(participant));
+
+      const uniqueParticipants: CounterParticipant[] = [];
+      const seenAddresses = new Set<string>();
+      for (const participant of participants) {
+        if (seenAddresses.has(participant.address)) {
+          continue;
+        }
+        seenAddresses.add(participant.address);
+        uniqueParticipants.push(participant);
+      }
+      setInteractingWallets(uniqueParticipants);
+    } catch (fetchError) {
+      console.error("Failed to load interacting wallets:", fetchError);
+      setParticipantsError("Failed to load wallets that interacted with the contract.");
+      setInteractingWallets([]);
+    } finally {
+      setIsLoadingParticipants(false);
+    }
+  }, [connection]);
 
   const { createInstruction, updateInstruction } = useMemo(() => {
     if (!program) {
@@ -141,6 +210,10 @@ export default function CounterState() {
       }
     };
   }, [connection, counterPDA, fetchCounter, program]);
+
+  useEffect(() => {
+    void fetchInteractingWallets();
+  }, [fetchInteractingWallets, walletAddress]);
 
   const buildAccounts = useCallback(
     (instruction: IdlInstruction | null) => {
@@ -239,6 +312,7 @@ export default function CounterState() {
       setHasCorruptedCounter(false);
       setTxSignature(signature);
       await fetchCounter();
+      await fetchInteractingWallets();
     } catch (error: unknown) {
       console.error("Increment failed:", error);
       if (isAccountDeserializeError(error)) {
@@ -266,6 +340,7 @@ export default function CounterState() {
     counterPDA,
     createInstruction,
     fetchCounter,
+    fetchInteractingWallets,
     hasCorruptedCounter,
     isProcessing,
     program,
@@ -301,6 +376,25 @@ export default function CounterState() {
           >
             View transaction
           </a>
+        )}
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-semibold">Wallets that interacted with this contract</p>
+        {participantsError ? (
+          <p className="text-sm text-red-500">{participantsError}</p>
+        ) : isLoadingParticipants ? (
+          <p className="text-sm text-slate-500">Loading wallets…</p>
+        ) : interactingWallets.length === 0 ? (
+          <p className="text-sm text-slate-500">No wallets have interacted yet.</p>
+        ) : (
+          <ul className="space-y-1 text-xs text-slate-500">
+            {interactingWallets.map(({ address, count }) => (
+              <li key={address} className="break-all">
+                {address}
+                <span className="ml-2 text-slate-400">(Count: {count})</span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>
