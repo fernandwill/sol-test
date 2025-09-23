@@ -30,10 +30,21 @@ function toCamelCase(name: string): string {
   return lower.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
 }
 
+function readUint64LE(buffer: Buffer, offset: number): bigint {
+  const lower = buffer.readUInt32LE(offset);
+  const upper = buffer.readUInt32LE(offset + 4);
+  return (BigInt(upper) << 32n) + BigInt(lower);
+}
+
 type IdlInstructionAccount = { name: string };
 type IdlInstruction = {
   name: string;
   accounts?: IdlInstructionAccount[];
+};
+
+type ParticipantSummary = {
+  address: string;
+  count: string;
 };
 
 export default function CounterState() {
@@ -62,7 +73,7 @@ export default function CounterState() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [hasCorruptedCounter, setHasCorruptedCounter] = useState(false);
   const [txSignature, setTxSignature] = useState<string | null>(null);
-  const [interactingWallets, setInteractingWallets] = useState<string[]>([]);
+  const [interactingWallets, setInteractingWallets] = useState<ParticipantSummary[]>([]);
   const [isLoadingParticipants, setIsLoadingParticipants] = useState(false);
   const [participantsError, setParticipantsError] = useState<string | null>(null);
 
@@ -71,30 +82,35 @@ export default function CounterState() {
     setParticipantsError(null);
     try {
       const programAccounts = await connection.getProgramAccounts(PROGRAM_ID, {
-        dataSlice: { offset: 0, length: 40 },
+        dataSlice: { offset: 0, length: 48 },
         filters: [{ dataSize: 48 }],
         commitment: "confirmed",
       });
 
-      const participants = programAccounts
-        .map(({ account }) => {
-          const data = Buffer.from(account.data);
-          if (data.length < 40) {
-            return null;
-          }
+      const participants = new Map<string, bigint>();
 
-          try {
-            const authorityBytes = data.slice(8, 40);
-            return new PublicKey(authorityBytes).toBase58();
-          } catch (decodeError) {
-            console.warn("Failed to decode counter account authority:", decodeError);
-            return null;
-          }
-        })
-        .filter((address): address is string => Boolean(address));
+      for (const { account } of programAccounts) {
+        const data = Buffer.from(account.data);
+        if (data.length < 48) {
+          continue;
+        }
 
-      const uniqueParticipants = participants.filter((address, index, array) => array.indexOf(address) === index);
-      setInteractingWallets(uniqueParticipants);
+        try {
+          const authorityBytes = data.slice(8, 40);
+          const authorityAddress = new PublicKey(authorityBytes).toBase58();
+          const countValue = readUint64LE(data, 40);
+          const previousCount = participants.get(authorityAddress) ?? 0n;
+          participants.set(authorityAddress, previousCount + countValue);
+        } catch (decodeError) {
+          console.warn("Failed to decode counter account data:", decodeError);
+        }
+      }
+
+      const participantSummaries = Array.from(participants.entries()).map(([address, count]) => ({
+        address,
+        count: count.toString(),
+      }));
+      setInteractingWallets(participantSummaries);
     } catch (fetchError) {
       console.error("Failed to load interacting wallets:", fetchError);
       setParticipantsError("Failed to load wallets that interacted with the contract.");
@@ -361,9 +377,10 @@ export default function CounterState() {
           <p className="text-sm text-slate-500">No wallets have interacted yet.</p>
         ) : (
           <ul className="space-y-1 text-xs text-slate-500">
-            {interactingWallets.map((address) => (
+            {interactingWallets.map(({ address, count }) => (
               <li key={address} className="break-all">
-                {address}
+                <div>{address}</div>
+                <div className="text-slate-400">Count: {count}</div>
               </li>
             ))}
           </ul>
